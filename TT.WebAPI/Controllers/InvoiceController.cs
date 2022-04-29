@@ -103,42 +103,48 @@ namespace TT.WebAPI.Controllers
             return Ok(invoice);
         }
 
-        /* CANNED VISUAL STUDIO EXAMPLES */
-
         // POST api/<InvoiceController>
         [HttpPost]
         [Route("add")]
-        public void Post([FromBody] BaseInvoice baseInvoice)
+        public IActionResult Post([FromBody] BaseInvoice baseInvoice)
         {
-            var nextInvoiceNumber = GetAllInvoices().Max(x => x.Number) + 1;
-            var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-            string fmt = "0000";
-
-
-            var newInvoice = new 
+            if (ModelState.IsValid)
             {
-                Created = now,
-                Changed = now,
-                Number = nextInvoiceNumber.ToString(fmt),
-                ProcessingStatus = (int)Enums.Processing.Statuses.New,
-                Amount = baseInvoice.Amount,
-                PaymentMethod = (int)baseInvoice.PaymentMethod,                
-            };
+                var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+                string fmt = "0000";
 
-            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-            {
-                HasHeaderRecord = false,
-                NewLine = Environment.NewLine,
-                Delimiter = ";",
-            };
+                var newInvoice = new
+                {
+                    Created = now,
+                    Changed = now,
+                    Number = baseInvoice.Number.ToString(fmt),
+                    ProcessingStatus = (int)Enums.Processing.Statuses.New,
+                    Amount = baseInvoice.Amount,
+                    PaymentMethod = (int)Enums.Payment.Methods.CreditCard,
+                };
 
-            using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH,true))
-            using (var csv = new CsvWriter(writer, config))
-            {
-                csv.WriteRecords(new[] { newInvoice });
+                var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+                {
+                    HasHeaderRecord = false,
+                    NewLine = Environment.NewLine,
+                    Delimiter = ";",
+                };
+
+                using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH, true))
+                using (var csv = new CsvWriter(writer, config))
+                {
+                    csv.WriteRecords(new[] { newInvoice });
+                }
+
+                return Ok();
             }
-
+            else
+            {
+                return BadRequest();
+            }
         }
+
+        /* CANNED VISUAL STUDIO EXAMPLES */
 
         //// PUT api/<InvoiceController>/5
         //[HttpPut("{id}")]
