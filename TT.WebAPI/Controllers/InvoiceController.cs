@@ -16,17 +16,8 @@ namespace TT.WebAPI.Controllers
     [ApiController]
     public class InvoiceController : ControllerBase
     {
-        [HttpGet]
-        [Route("allPaged")]
-        [ProducesResponseType(typeof(IEnumerable<Invoice>), (int)HttpStatusCode.OK)]
-        public IActionResult GetAll(int page = 1, int pageSize = 50)
-        {
-            IEnumerable<Invoice> invoices = GetPagedInvoices(page, pageSize);
 
-            return Ok(invoices);
-        }
-
-        private static IEnumerable<Invoice> GetPagedInvoices(int page, int pageSize)
+        private static IEnumerable<Invoice> GetAllInvoices()
         {
             IEnumerable<Invoice> invoices = new List<Invoice>();
 
@@ -39,35 +30,32 @@ namespace TT.WebAPI.Controllers
             using (var reader = new StreamReader(Constants.INVOICE_FILE_PATH))
             using (var csv = new CsvReader(reader, config))
             {
-                invoices = csv.GetRecords<Invoice>().ToList().Skip((page - 1) * pageSize).Take(pageSize);
+                invoices = csv.GetRecords<Invoice>().ToList();
             }
 
             return invoices;
         }
 
-        [HttpGet("{id}")]
-        [ProducesResponseType(typeof(Invoice), (int)HttpStatusCode.OK)]
-        public IActionResult Get(int id)
+        private static IEnumerable<Invoice> GetPagedInvoices(int page, int pageSize)
         {
-            IEnumerable<Invoice>? invoice = GetPagedInvoices(1, int.MaxValue).Where(x => x.Number == id);
+            IEnumerable<Invoice> invoices = GetAllInvoices();
 
-            return Ok(invoice);
+            invoices = invoices.Skip((page - 1) * pageSize).Take(pageSize);
+
+            return invoices;
         }
 
-        [HttpGet]
-        [Route("getByParameters")]
-        public ActionResult<Invoice[]> GetByParameters([FromQuery] InvoiceParameters invoiceParameters)
+        private static IEnumerable<Invoice> FilterBy(InvoiceParameters invoiceParameters, IEnumerable<Invoice> invoice)
         {
-            var invoice = GetPagedInvoices(invoiceParameters.PageNumber, invoiceParameters.PageSize);
-
-            IEnumerable<Invoice> invoicesByParameters = Filter(invoiceParameters, invoice);
-
-            if (!string.IsNullOrWhiteSpace(invoiceParameters.OrderBy))
-                invoicesByParameters = OrderBy(invoiceParameters, invoicesByParameters);
-
-            return Ok(invoicesByParameters);
+            return invoice.Where(x => x.Created >= invoiceParameters.MinCreated &&
+                                      x.Created <= invoiceParameters.MaxCreated &&
+                                      x.Changed >= invoiceParameters.MinChanged &&
+                                      x.Changed <= invoiceParameters.MaxChanged &&
+                                      x.ProcessingStatus == invoiceParameters.ProcessingStatus &&
+                                      x.Amount >= invoiceParameters.MinAmount &&
+                                      x.Amount <= invoiceParameters.MaxAmount &&
+                                      x.PaymentMethod == invoiceParameters.PaymentMethod);
         }
-
         private static IEnumerable<Invoice> OrderBy(InvoiceParameters invoiceParameters, IEnumerable<Invoice> invoicesByParameters)
         {
             var orderParams = invoiceParameters.OrderBy.Trim().Split(',');
@@ -92,25 +80,65 @@ namespace TT.WebAPI.Controllers
             return invoicesByParameters;
         }
 
-        private static IEnumerable<Invoice> Filter(InvoiceParameters invoiceParameters, IEnumerable<Invoice> invoice)
+        [HttpGet]
+        [Route("getByParameters")]
+        public ActionResult<Invoice[]> GetByParameters([FromQuery] InvoiceParameters invoiceParameters)
         {
-            return invoice.Where(x => x.Created >= invoiceParameters.MinCreated &&
-                                              x.Created <= invoiceParameters.MaxCreated &&
-                                              x.Changed >= invoiceParameters.MinChanged &&
-                                              x.Changed <= invoiceParameters.MaxChanged &&
-                                              x.ProcessingStatus == invoiceParameters.ProcessingStatus &&
-                                              x.Amount >= invoiceParameters.MinAmount &&
-                                              x.Amount <= invoiceParameters.MaxAmount &&
-                                              x.PaymentMethod == invoiceParameters.PaymentMethod);
+            IEnumerable<Invoice> invoices = GetPagedInvoices(invoiceParameters.PageNumber, invoiceParameters.PageSize);
+
+            IEnumerable<Invoice> invoicesByParameters = FilterBy(invoiceParameters, invoices);
+
+            if (!string.IsNullOrWhiteSpace(invoiceParameters.OrderBy))
+                invoicesByParameters = OrderBy(invoiceParameters, invoicesByParameters);
+
+            return Ok(invoicesByParameters);
+        }
+
+        [HttpGet("{id}")]
+        [ProducesResponseType(typeof(Invoice), (int)HttpStatusCode.OK)]
+        public IActionResult Get(int id)
+        {
+            IEnumerable<Invoice> invoice = GetAllInvoices().Where(x => x.Number == id);
+
+            return Ok(invoice);
         }
 
         /* CANNED VISUAL STUDIO EXAMPLES */
 
-        //// POST api/<InvoiceController>
-        //[HttpPost]
-        //public void Post([FromBody] string value)
-        //{
-        //}
+        // POST api/<InvoiceController>
+        [HttpPost]
+        [Route("add")]
+        public void Post([FromBody] BaseInvoice baseInvoice)
+        {
+            var nextInvoiceNumber = GetAllInvoices().Max(x => x.Number) + 1;
+            var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            string fmt = "0000";
+
+
+            var newInvoice = new 
+            {
+                Created = now,
+                Changed = now,
+                Number = nextInvoiceNumber.ToString(fmt),
+                ProcessingStatus = (int)Enums.Processing.Statuses.New,
+                Amount = baseInvoice.Amount,
+                PaymentMethod = (int)baseInvoice.PaymentMethod,                
+            };
+
+            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                HasHeaderRecord = false,
+                NewLine = Environment.NewLine,
+                Delimiter = ";",
+            };
+
+            using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH,true))
+            using (var csv = new CsvWriter(writer, config))
+            {
+                csv.WriteRecords(new[] { newInvoice });
+            }
+
+        }
 
         //// PUT api/<InvoiceController>/5
         //[HttpPut("{id}")]
