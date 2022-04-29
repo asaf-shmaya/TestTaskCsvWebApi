@@ -94,11 +94,11 @@ namespace TT.WebAPI.Controllers
             return Ok(invoicesByParameters);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{number}")]
         [ProducesResponseType(typeof(Invoice), (int)HttpStatusCode.OK)]
-        public IActionResult Get(int id)
+        public IActionResult Get(int number)
         {
-            IEnumerable<Invoice> invoice = GetAllInvoices().Where(x => x.Number == id);
+            IEnumerable<Invoice> invoice = GetAllInvoices().Where(x => x.Number == number);
 
             return Ok(invoice);
         }
@@ -146,11 +146,12 @@ namespace TT.WebAPI.Controllers
 
         /* CANNED VISUAL STUDIO EXAMPLES */
 
-        //// PUT api/<InvoiceController>/5
-        //[HttpPut("{id}")]
-        //public void Put(int id, [FromBody] string value)
-        //{
-        //}
+        // PUT api/<InvoiceController>/5
+        [HttpPut("{number}")]
+        public void Put(int number, [FromQuery] Invoice invoice)
+        {
+
+        }
 
         //// DELETE api/<InvoiceController>/5
         //[HttpDelete("{id}")]
