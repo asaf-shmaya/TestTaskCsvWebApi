@@ -17,7 +17,7 @@ namespace TT.WebAPI.Controllers
     public class InvoiceController : ControllerBase
     {
 
-        private static IEnumerable<Invoice> GetAllInvoices()
+        private static IEnumerable<Invoice> LoadAllInvoices()
         {
             var invoices = new List<Invoice>();
 
@@ -32,6 +32,17 @@ namespace TT.WebAPI.Controllers
             return invoices;
         }
 
+        private static void SaveAllInvoices<T>(IEnumerable<T> records)
+        {
+            var csvConfiguration = GetCsvConfiguration();
+
+            using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH, true))
+            using (var csv = new CsvWriter(writer, csvConfiguration))
+            {
+                csv.WriteRecords(records);
+            }
+        }
+
         private static CsvConfiguration GetCsvConfiguration()
         {
             return new CsvConfiguration(CultureInfo.InvariantCulture)
@@ -44,7 +55,7 @@ namespace TT.WebAPI.Controllers
 
         private static IEnumerable<Invoice> GetPagedInvoices(int page, int pageSize)
         {
-            IEnumerable<Invoice> invoices = GetAllInvoices();
+            IEnumerable<Invoice> invoices = LoadAllInvoices();
 
             invoices = invoices.Skip((page - 1) * pageSize).Take(pageSize);
 
@@ -104,7 +115,7 @@ namespace TT.WebAPI.Controllers
         [ProducesResponseType(typeof(Invoice), (int)HttpStatusCode.OK)]
         public IActionResult Get(int number)
         {
-            IEnumerable<Invoice> invoice = GetAllInvoices().Where(x => x.Number == number);
+            IEnumerable<Invoice> invoice = LoadAllInvoices().Where(x => x.Number == number);
 
             return Ok(invoice);
         }
@@ -129,24 +140,18 @@ namespace TT.WebAPI.Controllers
                     PaymentMethod = (int)Enums.Payment.Methods.CreditCard,
                 };
 
+                if (LoadAllInvoices().Where(x => x.Number == baseInvoice.Number).Any())
+                {
+                    return BadRequest($"Invoice {baseInvoice.Number} already exists.");
+                }
+
                 SaveAllInvoices(new [] { newInvoice });
 
-                return Ok();
+                return Ok(new[] { newInvoice });
             }
             else
             {
-                return BadRequest();
-            }
-        }
-
-        private static void SaveAllInvoices<T>(IEnumerable<T> records)
-        {
-            var csvConfiguration = GetCsvConfiguration();
-
-            using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH, true))
-            using (var csv = new CsvWriter(writer, csvConfiguration))
-            {
-                csv.WriteRecords(records);
+                return BadRequest(ModelState);
             }
         }
 
