@@ -19,21 +19,27 @@ namespace TT.WebAPI.Controllers
 
         private static IEnumerable<Invoice> GetAllInvoices()
         {
-            IEnumerable<Invoice> invoices = new List<Invoice>();
+            var invoices = new List<Invoice>();
 
-            var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-            {
-                HasHeaderRecord = false,
-                NewLine = Environment.NewLine,
-                Delimiter = ";",
-            };
+            var csvConfiguration = GetCsvConfiguration();
+
             using (var reader = new StreamReader(Constants.INVOICE_FILE_PATH))
-            using (var csv = new CsvReader(reader, config))
+            using (var csv = new CsvReader(reader, csvConfiguration))
             {
                 invoices = csv.GetRecords<Invoice>().ToList();
             }
 
             return invoices;
+        }
+
+        private static CsvConfiguration GetCsvConfiguration()
+        {
+            return new CsvConfiguration(CultureInfo.InvariantCulture)
+            {
+                HasHeaderRecord = false,
+                NewLine = Environment.NewLine,
+                Delimiter = ";",
+            };
         }
 
         private static IEnumerable<Invoice> GetPagedInvoices(int page, int pageSize)
@@ -123,24 +129,24 @@ namespace TT.WebAPI.Controllers
                     PaymentMethod = (int)Enums.Payment.Methods.CreditCard,
                 };
 
-                var config = new CsvConfiguration(CultureInfo.InvariantCulture)
-                {
-                    HasHeaderRecord = false,
-                    NewLine = Environment.NewLine,
-                    Delimiter = ";",
-                };
-
-                using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH, true))
-                using (var csv = new CsvWriter(writer, config))
-                {
-                    csv.WriteRecords(new[] { newInvoice });
-                }
+                SaveAllInvoices(new [] { newInvoice });
 
                 return Ok();
             }
             else
             {
                 return BadRequest();
+            }
+        }
+
+        private static void SaveAllInvoices<T>(IEnumerable<T> records)
+        {
+            var csvConfiguration = GetCsvConfiguration();
+
+            using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH, true))
+            using (var csv = new CsvWriter(writer, csvConfiguration))
+            {
+                csv.WriteRecords(records);
             }
         }
 
