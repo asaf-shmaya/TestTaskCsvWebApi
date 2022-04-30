@@ -192,7 +192,7 @@ namespace TT.WebAPI.Controllers
 
             SaveAllInvoices(newInvoices, false);
 
-            return Ok($"Changed invoice number {number} to amount {amount}.");
+            return Ok($"Changed invoice number {number} to amount {amount.ToString("0.00", CultureInfo.InvariantCulture)}.");
         }
 
         //// DELETE api/<InvoiceController>/5
