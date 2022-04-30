@@ -185,7 +185,7 @@ namespace TT.WebAPI.Controllers
                     Changed = invoice.Changed.ToString(DateTimeFormat, CultureInfo.InvariantCulture),
                     Number = invoice.Number.ToString(InvoiceNumberFormat),
                     ProcessingStatus = (int)invoice.ProcessingStatus,
-                    Amount = invoice.Amount,
+                    Amount = String.Format(CultureInfo.InvariantCulture, "{0:0.00}", invoice.Amount),
                     PaymentMethod = (int)invoice.PaymentMethod,
                 });
             }
