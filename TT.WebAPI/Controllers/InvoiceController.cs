@@ -7,6 +7,7 @@ using System.Net;
 using System.Reflection;
 using System.Text;
 using TT.Models;
+using System.Linq;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -16,6 +17,8 @@ namespace TT.WebAPI.Controllers
     [ApiController]
     public class InvoiceController : ControllerBase
     {
+        private const string DateTimeFormat = "yyyy-MM-dd HH:mm:ss";
+        private const string InvoiceNumberFormat = "0000";
 
         private static IEnumerable<Invoice> LoadAllInvoices()
         {
@@ -32,11 +35,11 @@ namespace TT.WebAPI.Controllers
             return invoices;
         }
 
-        private static void SaveAllInvoices<T>(IEnumerable<T> records)
+        private static void SaveAllInvoices<T>(IEnumerable<T> records, bool append = true)
         {
             var csvConfiguration = GetCsvConfiguration();
 
-            using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH, true))
+            using (var writer = new StreamWriter(Constants.INVOICE_FILE_PATH, append))
             using (var csv = new CsvWriter(writer, csvConfiguration))
             {
                 csv.WriteRecords(records);
@@ -99,7 +102,7 @@ namespace TT.WebAPI.Controllers
 
         [HttpGet]
         [Route("getByParameters")]
-        public ActionResult<Invoice[]> GetByParameters([FromQuery] InvoiceParameters invoiceParameters)
+        public ActionResult<Invoice[]> GetBy([FromQuery] InvoiceParameters invoiceParameters)
         {
             IEnumerable<Invoice> invoices = GetPagedInvoices(invoiceParameters.PageNumber, invoiceParameters.PageSize);
 
@@ -122,19 +125,17 @@ namespace TT.WebAPI.Controllers
 
         // POST api/<InvoiceController>
         [HttpPost]
-        [Route("add")]
         public IActionResult Post([FromBody] BaseInvoice baseInvoice)
         {
             if (ModelState.IsValid)
             {
-                var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-                string fmt = "0000";
+                string now = DateTime.Now.ToString(DateTimeFormat, CultureInfo.InvariantCulture);
 
                 var newInvoice = new
                 {
                     Created = now,
                     Changed = now,
-                    Number = baseInvoice.Number.ToString(fmt),
+                    Number = baseInvoice.Number.ToString(InvoiceNumberFormat),
                     ProcessingStatus = (int)Enums.Processing.Statuses.New,
                     Amount = baseInvoice.Amount,
                     PaymentMethod = (int)Enums.Payment.Methods.CreditCard,
@@ -159,9 +160,39 @@ namespace TT.WebAPI.Controllers
 
         // PUT api/<InvoiceController>/5
         [HttpPut("{number}")]
-        public void Put(int number, [FromQuery] Invoice invoice)
+        public IActionResult Put(int number, double amount)
         {
+            var invoices = LoadAllInvoices().ToList();
 
+            if (!invoices.Where(x => x.Number == number).Any())
+                return BadRequest($"Can't update Invoice {number}. It doesn't exist.");
+
+            foreach (var invoice in
+            from invoice in invoices
+            where invoice.Number == number
+            select invoice)
+            {
+                invoice.Amount = amount;
+            }
+
+            List<object> newInvoices = new List<object>();
+
+            foreach (var invoice in invoices)
+            {
+                newInvoices.Add(new
+                {
+                    Created = invoice.Created.ToString(DateTimeFormat, CultureInfo.InvariantCulture),
+                    Changed = invoice.Changed.ToString(DateTimeFormat, CultureInfo.InvariantCulture),
+                    Number = invoice.Number.ToString(InvoiceNumberFormat),
+                    ProcessingStatus = (int)invoice.ProcessingStatus,
+                    Amount = invoice.Amount,
+                    PaymentMethod = (int)invoice.PaymentMethod,
+                });
+            }
+
+            SaveAllInvoices(newInvoices, false);
+
+            return Ok($"Changed invoice number {number} to amount {amount}.");
         }
 
         //// DELETE api/<InvoiceController>/5
